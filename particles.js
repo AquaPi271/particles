@@ -175,9 +175,9 @@ function main() {
 
     particle_system = new ParticleSystem(gl, 5);
     particle_system.add_particle( new Particle( -1.0, 0.0, 0.0 ) );
-    particle_system.add_particle( new Particle( -1.0, 0.5, 0.0 ) );
-    particle_system.add_particle( new Particle( -1.0, -0.5, 0.0 ) );
-    particle_system.add_particle( new Particle( 0.1, -0.5, 0.0 ) );
+    // particle_system.add_particle( new Particle( -1.0, 0.5, 0.0 ) );
+    // particle_system.add_particle( new Particle( -1.0, -0.5, 0.0 ) );
+    // particle_system.add_particle( new Particle( 0.1, -0.5, 0.0 ) );
 
     render_scene();
 }
