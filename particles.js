@@ -24,27 +24,23 @@ class Particle {
         x,
         y,
         z,
-        y_offset
+        y_offset,
+        amplitude
     ) {
         this.x = x;
         this.y = y;
         this.z = z;
         this.y_offset = y_offset;
+        this.amplitude = amplitude;
     }
 
     clone( ) {
-        return( new Particle(this.x, this.y, this.z, this.y_offset) );
+        return( new Particle(this.x, this.y, this.z, this.y_offset, this.amplitude ) );
     }
 
-    update_old( delta_t ) {
-        this.x += 0.01 * delta_t;
-        if( this.x >= 1.0 ) {
-            this.x = -1.0;
-        }
-    }
     update( delta_t ) {
         this.x += 0.01 * delta_t;
-        this.y = this.y_offset + Math.sin(this.x * Math.PI);
+        this.y = this.y_offset + this.amplitude * Math.sin(this.x * Math.PI);
         if( this.x >= 1.0 ) {
             this.x = -1.0 + this.x - 1.0;
         }
@@ -187,7 +183,9 @@ function main() {
     particle_system = new ParticleSystem(gl, particle_count);
     for( var c = 0; c < particle_count; ++c ) {
         var rx = 2*Math.random() - 1.0;
-        particle_system.add_particle( new Particle( rx, 0.0, 0.0, -1.0 + 2*Math.random() ) );
+        //particle_system.add_particle( new Particle( rx, 0.0, 0.0, -1.0 + 2*Math.random(), Math.random() ) );
+        //particle_system.add_particle( new Particle( rx, 0.0, 0.0, 0.0, Math.random() ) );
+        particle_system.add_particle( new Particle( rx, 0.0, 0.0, 0.0, -1.0 + 2*Math.random(), Math.random() ) );
     }
 
     render_scene();
