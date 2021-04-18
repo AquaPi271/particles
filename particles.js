@@ -23,15 +23,17 @@ class Particle {
     constructor(
         x,
         y,
-        z
+        z,
+        y_offset
     ) {
         this.x = x;
         this.y = y;
         this.z = z;
+        this.y_offset = y_offset;
     }
 
     clone( ) {
-        return( new Particle(this.x, this.y, this.z) );
+        return( new Particle(this.x, this.y, this.z, this.y_offset) );
     }
 
     update_old( delta_t ) {
@@ -42,7 +44,7 @@ class Particle {
     }
     update( delta_t ) {
         this.x += 0.01 * delta_t;
-        this.y = Math.sin(this.x * Math.PI);
+        this.y = this.y_offset + Math.sin(this.x * Math.PI);
         if( this.x >= 1.0 ) {
             this.x = -1.0 + this.x - 1.0;
         }
@@ -185,7 +187,7 @@ function main() {
     particle_system = new ParticleSystem(gl, particle_count);
     for( var c = 0; c < particle_count; ++c ) {
         var rx = 2*Math.random() - 1.0;
-        particle_system.add_particle( new Particle( rx, 0.0, 0.0 ) );
+        particle_system.add_particle( new Particle( rx, 0.0, 0.0, -1.0 + 2*Math.random() ) );
     }
 
     render_scene();
