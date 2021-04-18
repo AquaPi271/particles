@@ -17,6 +17,68 @@ vertex_buffer[1] = 0.0;
 vertex_buffer[2] = 0.0;
 var gl_vertex_buffer = null;
 
+var particle_system = null;
+
+class Particle {
+    constructor(
+        x,
+        y,
+        z
+    ) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    clone( ) {
+        return( new Particle(this.x, this.y, this.z) );
+    }
+
+    update( delta_t ) {
+        this.x += 0.01 * delta_t;
+        if( this.x >= 1.0 ) {
+            this.x = -1.0;
+        }
+    }
+
+}
+
+class ParticleSystem {
+    constructor(
+        gl,
+        particle_count
+    ) {
+        this.particle_count = particle_count;
+        this.gl_vertex_buffer = gl.createBuffer();
+        this.vertex_buffer = new Float32Array(this.particle_count * 3);
+        this.particles = [];
+    }
+    add_particle( particle ) {
+        if( this.particles.length >= this.particle_count ) {
+            return(false);
+        }
+        this.particles.push( particle.clone() );
+        return(true);
+    }
+    draw(gl) {
+        var index = 0;
+        for( var p = 0; p < this.particles.length; ++p ) {
+            this.vertex_buffer[index++] = this.particles[p].x;
+            this.vertex_buffer[index++] = this.particles[p].y;
+            this.vertex_buffer[index++] = this.particles[p].z;
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.gl_vertex_buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this.vertex_buffer, gl.DYNAMIC_DRAW);
+        gl.vertexAttribPointer(attribute_vertex,3,gl.FLOAT,false,0,0);
+        gl.drawArrays(gl.POINTS,0,this.particles.length);
+    }
+    update( delta_t ) {
+        for( var p = 0; p < this.particles.length; ++p ) {
+            this.particles[p].update(delta_t);
+        }
+    }
+}
+
 function setup_webgl() {
     canvas = document.getElementById("myWebGLCanvas");
     gl = canvas.getContext("webgl");
@@ -95,13 +157,13 @@ function render_scene( ) {
 
     gl.viewport(0,0, canvas.width, canvas.height);
     
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl_vertex_buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, vertex_buffer, gl.DYNAMIC_DRAW);
+    // gl.bindBuffer(gl.ARRAY_BUFFER, gl_vertex_buffer);
+    // gl.bufferData(gl.ARRAY_BUFFER, vertex_buffer, gl.DYNAMIC_DRAW);
+    // gl.vertexAttribPointer(attribute_vertex,3,gl.FLOAT,false,0,0);
+    // gl.drawArrays(gl.POINTS,0,1);
 
-    //gl.bindBuffer(gl.ARRAY_BUFFER, gl_vertex_buffer);
-    gl.vertexAttribPointer(attribute_vertex,3,gl.FLOAT,false,0,0);
-
-    gl.drawArrays(gl.POINTS,0,1);
+    particle_system.update(1.0);
+    particle_system.draw(gl);
 
     window.requestAnimationFrame(render_scene);
 }
@@ -110,6 +172,12 @@ function main() {
     setup_webgl();
 
     setup_shaders();
+
+    particle_system = new ParticleSystem(gl, 5);
+    particle_system.add_particle( new Particle( -1.0, 0.0, 0.0 ) );
+    particle_system.add_particle( new Particle( -1.0, 0.5, 0.0 ) );
+    particle_system.add_particle( new Particle( -1.0, -0.5, 0.0 ) );
+    particle_system.add_particle( new Particle( 0.1, -0.5, 0.0 ) );
 
     render_scene();
 }
