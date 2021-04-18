@@ -34,10 +34,17 @@ class Particle {
         return( new Particle(this.x, this.y, this.z) );
     }
 
-    update( delta_t ) {
+    update_old( delta_t ) {
         this.x += 0.01 * delta_t;
         if( this.x >= 1.0 ) {
             this.x = -1.0;
+        }
+    }
+    update( delta_t ) {
+        this.x += 0.01 * delta_t;
+        this.y = Math.sin(this.x * Math.PI);
+        if( this.x >= 1.0 ) {
+            this.x = -1.0 + this.x - 1.0;
         }
     }
 
@@ -105,7 +112,7 @@ function setup_shaders( ) {
         attribute vec3 vertex_position;
 
         void main(void) {
-            gl_PointSize = 2.0;
+            gl_PointSize = 3.0;
             gl_Position = vec4(vertex_position,1.0);
         }
     `;
@@ -173,11 +180,13 @@ function main() {
 
     setup_shaders();
 
-    particle_system = new ParticleSystem(gl, 5);
-    particle_system.add_particle( new Particle( -1.0, 0.0, 0.0 ) );
-    particle_system.add_particle( new Particle( -1.0, 0.5, 0.0 ) );
-    particle_system.add_particle( new Particle( -1.0, -0.5, 0.0 ) );
-    particle_system.add_particle( new Particle( 0.1, -0.5, 0.0 ) );
+    var particle_count = 1000;
+
+    particle_system = new ParticleSystem(gl, particle_count);
+    for( var c = 0; c < particle_count; ++c ) {
+        var rx = 2*Math.random() - 1.0;
+        particle_system.add_particle( new Particle( rx, 0.0, 0.0 ) );
+    }
 
     render_scene();
 }
