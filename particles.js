@@ -128,6 +128,15 @@ class Particle {
         //console.log("scaled: x = " + this.x/AU + " y = " + this.y/AU + " z = " + this.z/AU);
     }
 
+    // static genererate_random_particle(sun_x, sun_y, sun_z, sun_mass, radius_min, radius_max, eccen_min, eccen_max, mass_min, mass_max) {
+    //     var radius = (radius_max-radius_min) * Math.random() + radius_min;
+    //     var angle  = (2*Math.PI) * Math.random();
+    //     var eccen  = (eccen_max - eccen_min) * Math.random() + eccen_min;
+    //     var mass   = (mass_max - mass_min) * Math.random() + mass_min;
+
+    //     //var tangent_velocity = 
+    // }
+
 }
 
 class ParticleSystem {
