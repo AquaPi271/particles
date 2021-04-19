@@ -18,32 +18,118 @@ vertex_buffer[2] = 0.0;
 var gl_vertex_buffer = null;
 
 var particle_system = null;
+var g_delta_t = 3600.0*24.0;
+
+// Universal Law of Gravitation:
+//
+// Fg = G * m1 * m2 / (r * r)
+//
+// G = 6.67430 x 10^-11 (N * m * m) / (kg * kg)
+const G = 6.67430*1.0E-11;
+const AU = 500.00E9;
+// 
+// 
+// Fsun_earth = G * Mearth * Msun / (r*r)
+//            = 6.67430 x 10^-11 * 5.9720 * 10^24 kg * 1.9891 * 10^30 kg / (149.6 * 10^9 m)^2
+//            = 3.5425742 x 10^22 N
+//            
+// Asun       = 3.5425742 x 10^22 N / 1.9891 * 10^30 kg = 1.78e-8 m/ss (negligible)
+// Aearth     = 3.5425742 x 10^22 N / 5.9720 * 10^24 kg  = 0.00593 m/ss
+//
+// Vearth_tan:  a = v*v/r, v = sqrt(a*r) = sqrt(0.00593 m/ss * 149.6 * 10^9m) = 29784 m/s
+//                   Mass               Distance to Sun
+//   Sun      = 1.9891 * 10^30 kg
+//   Mercury
+//   Venus    = 4.8670 * 10^24 kg
+//   Earth    = 5.9720 * 10^24 kg        149.6 * 10^9 m
+//   Mars     = 6.3900 * 10^23 kg
+//   Jupiter  = 1.8980 * 10^27 kg
+//   Saturn
+//   Uranus
+//   Neptune
+//   Pluto
+//   Asteroid
 
 class Particle {
     constructor(
         x,
         y,
         z,
-        y_offset,
-        amplitude
+        vx,
+        vy,
+        vz,
+        mass
     ) {
         this.x = x;
         this.y = y;
         this.z = z;
-        this.y_offset = y_offset;
-        this.amplitude = amplitude;
+        
+        this.vx = vx;
+        this.vy = vy;
+        this.vz = vz;
+
+        this.ax = 0.0;
+        this.ay = 0.0;
+        this.az = 0.0;
+
+        this.mass = mass;
     }
 
     clone( ) {
-        return( new Particle(this.x, this.y, this.z, this.y_offset, this.amplitude ) );
+        return( new Particle(this.x, this.y, this.z, this.vx, this.vy, this.vz, this.mass ) );
     }
 
-    update( delta_t ) {
+    reset_acceleration( ) {
+        this.ax = 0.0;
+        this.ay = 0.0;
+        this.az = 0.0;
+    }
+
+    interact( other_particle, bidirectional = true ) {
+        var r2 = (this.x - other_particle.x)**2 + (this.y - other_particle.y)**2 + (this.z - other_particle.z)**2;
+        var F = G * this.mass * other_particle.mass / r2;
+        var rm1 = 1.0/Math.sqrt(r2); 
+        var a_this = F / this.mass;
+        var a_other_particle = F / other_particle.mass;
+        this.ax += a_this * (other_particle.x - this.x) * rm1;
+        this.ay += a_this * (other_particle.y - this.y) * rm1;
+        this.az += a_this * (other_particle.z - this.z) * rm1;
+        other_particle.ax += a_other_particle * (this.x - other_particle.x) * rm1;
+        other_particle.ay += a_other_particle * (this.y - other_particle.y) * rm1;
+        other_particle.az += a_other_particle * (this.z - other_particle.z) * rm1;
+    }
+ 
+    update_sine( delta_t ) {
         this.x += 0.01 * delta_t;
         this.y = this.y_offset + this.amplitude * Math.sin(this.x * Math.PI);
         if( this.x >= 1.0 ) {
             this.x = -1.0 + this.x - 1.0;
         }
+    }
+
+    update( delta_t ) {
+
+        var c_vx = this.vx;
+        var c_vy = this.vy;
+        var c_vz = this.vz;
+
+        this.vx += this.ax * delta_t;
+        this.vy += this.ay * delta_t;
+        this.vz += this.az * delta_t;
+
+        var avg_vx = (c_vx + this.vx) / 2.0;
+        var avg_vy = (c_vy + this.vy) / 2.0;
+        var avg_vz = (c_vz + this.vz) / 2.0;
+
+        this.x += avg_vx * delta_t;
+        this.y += avg_vy * delta_t;
+        this.z += avg_vz * delta_t;
+
+        // this.x += this.vx * delta_t + 0.5 * this.ax * delta_t * delta_t;
+        // this.y += this.vy * delta_t + 0.5 * this.ay * delta_t * delta_t;
+        // this.z += this.vz * delta_t + 0.5 * this.az * delta_t * delta_t;
+        //console.log("x = " + this.x + " y = " + this.y + " z = " + this.z);
+        //console.log("scaled: x = " + this.x/AU + " y = " + this.y/AU + " z = " + this.z/AU);
     }
 
 }
@@ -67,10 +153,15 @@ class ParticleSystem {
     }
     draw(gl) {
         var index = 0;
+        // for( var p = 0; p < this.particles.length; ++p ) {
+        //     this.vertex_buffer[index++] = this.particles[p].x;
+        //     this.vertex_buffer[index++] = this.particles[p].y;
+        //     this.vertex_buffer[index++] = this.particles[p].z;
+        // }
         for( var p = 0; p < this.particles.length; ++p ) {
-            this.vertex_buffer[index++] = this.particles[p].x;
-            this.vertex_buffer[index++] = this.particles[p].y;
-            this.vertex_buffer[index++] = this.particles[p].z;
+            this.vertex_buffer[index++] = this.particles[p].x/AU;
+            this.vertex_buffer[index++] = this.particles[p].y/AU;
+            this.vertex_buffer[index++] = this.particles[p].z/AU;
         }
         gl.bindBuffer(gl.ARRAY_BUFFER, this.gl_vertex_buffer);
         gl.bufferData(gl.ARRAY_BUFFER, this.vertex_buffer, gl.DYNAMIC_DRAW);
@@ -79,7 +170,20 @@ class ParticleSystem {
     }
     update( delta_t ) {
         for( var p = 0; p < this.particles.length; ++p ) {
-            this.particles[p].update(delta_t);
+            //this.particles[p].update(delta_t);
+            // Reset for this round of acceleration.
+            this.particles[p].reset_acceleration();
+        }
+        // Painful N^2 loop.
+        for( var m = 0; m < this.particles.length-1; ++m ) {
+            var particle_m = this.particles[m];
+            for( var n = m+1; n < this.particles.length; ++n ) {
+                particle_m.interact(this.particles[n]);
+            }
+        }
+        // Update positions
+        for( var m = 0; m < this.particles.length; ++m ) {
+            this.particles[m].update(g_delta_t);
         }
     }
 }
@@ -178,15 +282,26 @@ function main() {
 
     setup_shaders();
 
-    var particle_count = 1000;
+    var particle_count = 2;
+
+    var earth_circ_v = Math.sqrt( G * 1.9891E30 / 150.25E9 );
+    //console.log(earth_circ_v);
+    //exit ;
 
     particle_system = new ParticleSystem(gl, particle_count);
-    for( var c = 0; c < particle_count; ++c ) {
-        var rx = 2*Math.random() - 1.0;
-        //particle_system.add_particle( new Particle( rx, 0.0, 0.0, -1.0 + 2*Math.random(), Math.random() ) );
-        //particle_system.add_particle( new Particle( rx, 0.0, 0.0, 0.0, Math.random() ) );
-        particle_system.add_particle( new Particle( rx, 0.0, 0.0, 0.0, -1.0 + 2*Math.random(), Math.random() ) );
-    }
+    particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.9891E30) ); // Sun
+    particle_system.add_particle( new Particle( 150.25E9, 0.0, 0.0, 0.0, earth_circ_v, 0.0, 5.972E24) ); // Earth
+    //particle_system.add_particle( new Particle( 150.25E9, 0.0, 0.0, 0.0, 29000.0, 0.0, 6.39E23) ); // Mars
+
+    // var particle_count = 1000;
+
+    // particle_system = new ParticleSystem(gl, particle_count);
+    // for( var c = 0; c < particle_count; ++c ) {
+    //     var rx = 2*Math.random() - 1.0;
+    //     //particle_system.add_particle( new Particle( rx, 0.0, 0.0, -1.0 + 2*Math.random(), Math.random() ) );
+    //     //particle_system.add_particle( new Particle( rx, 0.0, 0.0, 0.0, Math.random() ) );
+    //     particle_system.add_particle( new Particle( rx, 0.0, 0.0, 0.0, -1.0 + 2*Math.random(), Math.random() ) );
+    // }
 
     render_scene();
 }
