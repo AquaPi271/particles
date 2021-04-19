@@ -281,7 +281,7 @@ function main() {
 
     var particle_count = 2;
 
-    var earth_circ_v = Math.sqrt( G * 400.0 / 0.5) * 0.6;
+    var earth_circ_v = Math.sqrt( G * 400.0 / 0.5);
     //console.log(earth_circ_v);
     //exit ;
 
