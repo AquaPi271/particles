@@ -1,10 +1,20 @@
 
-
-
 // Gravity system parameters.
 
-var particle_count = 100;
-var g_delta_t = 0.00005;
+var G = 1.0;  // barely any gravity
+var epsilon = 0.000000001;
+var g_delta_t = 0.00005;  // time step
+
+
+var G_n_body = 10.0;
+var epsilon_n_body = 0.01;
+var g_delta_t_n_body = 0.00001;  // time step
+
+var G_solar_system = 1.0;
+var epsilon_solar_system = 0.00000001;
+var g_delta_t_solar_system = 0.00005;  // time step
+
+var particle_count = 1000;
 var sun_mass = 4000.0;
 
 var min_orbital_radius = 0.3;  // anything past 1.0 may not be visible
@@ -17,6 +27,15 @@ var min_mass = 0.01;  // too heavy relative to Sun will de-stablize Sun
 var max_mass = 0.1;
 
 var flipped_orbit_probability = 0.1;
+
+var simulate_n_body = true;
+
+var n_body_min_x = -1.0;
+var n_body_max_x = 1.0;
+var n_body_min_y = -1.0;
+var n_body_max_y = 1.0;
+var n_body_min_mass = 10.0;
+var n_body_max_mass = 100.0;
 
 var particle_system = null;
 
@@ -36,8 +55,6 @@ var attribute_vertex = null;
 // Fg = G * m1 * m2 / (r * r)
 //
 // G = 6.67430 x 10^-11 (N * m * m) / (kg * kg)
-
-const G = 1.0; // barely any gravity
 
 // 
 // 
@@ -101,7 +118,7 @@ class Particle {
     }
 
     interact( other_particle, bidirectional = true ) {
-        var r2 = (this.x - other_particle.x)**2 + (this.y - other_particle.y)**2 + (this.z - other_particle.z)**2;
+        var r2 = (this.x - other_particle.x)**2 + (this.y - other_particle.y)**2 + (this.z - other_particle.z)**2 + epsilon;
         var F = G * this.mass * other_particle.mass / r2;
         var rm1 = 1.0/Math.sqrt(r2); 
         var a_this = F / this.mass;
@@ -158,6 +175,16 @@ class Particle {
         return( particle );
     }
 
+    static generate_n_body_particle(min_x, max_x, min_y, max_y, mass_min, mass_max ) {
+
+        var px   = (max_x - min_x) * Math.random() + min_x;
+        var py   = (max_y - min_y) * Math.random() + min_y;
+        var mass   = (mass_max - mass_min) * Math.random() + mass_min;
+
+        var particle = new Particle(px, py, 0.0, 0.0, 0.0, 0.0, mass);
+        return( particle );
+    }
+
 }
 
 class ParticleSystem {
@@ -191,7 +218,6 @@ class ParticleSystem {
     }
     update( delta_t ) {
         for( var p = 0; p < this.particles.length; ++p ) {
-            //this.particles[p].update(delta_t);
             // Reset for this round of acceleration.
             this.particles[p].reset_acceleration();
         }
@@ -294,19 +320,39 @@ function render_scene( ) {
 }
 
 function main() {
+
+    if( simulate_n_body ) {
+        G = G_n_body;
+        epsilon = epsilon_n_body;
+        g_delta_t = g_delta_t_n_body;
+    } else {
+        G = G_solar_system;
+        epsilon = epsilon_solar_system;
+        g_delta_t = g_delta_t_solar_system;
+    }
+
     setup_webgl();
 
     setup_shaders();
 
     particle_system = new ParticleSystem(gl, particle_count+1);
-    particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, sun_mass) ); // Sun
+    if( !simulate_n_body ) {
+        particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, sun_mass) ); // Sun
+    }
     for( var c = 0; c < particle_count; ++c ) {
-         var p = Particle.genererate_random_particle(0.0, 0.0, 0.0, sun_mass, 0.1, 0.8, 0.4, 1.0, 0.01, 0.1); 
-         var p = Particle.genererate_random_particle(
-            0.0, 0.0, 0.0, sun_mass,   // sun x,y,z and mass
-            min_orbital_radius, max_orbital_radius,  
-            min_eccentricity, max_eccentricity,
-            min_mass, max_mass );
+        var p = null;
+        if( simulate_n_body ) {
+            p = Particle.generate_n_body_particle(
+                n_body_min_x, n_body_max_x,
+                n_body_min_y, n_body_max_y,
+                n_body_min_mass, n_body_max_mass );
+        } else {
+            p = Particle.genererate_random_particle(
+                0.0, 0.0, 0.0, sun_mass,   // sun x,y,z and mass
+                min_orbital_radius, max_orbital_radius,  
+                min_eccentricity, max_eccentricity,
+                min_mass, max_mass );
+        }
          particle_system.add_particle( p );
     }
 
