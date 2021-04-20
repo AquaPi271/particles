@@ -1,7 +1,26 @@
 
 
-//mat4.perspective(projection_matrix, 0.5 * Math.PI, canvas.width/canvas.height, near_clip_plane_distance, far_clip_plane_distance );
 
+// Gravity system parameters.
+
+var particle_count = 100;
+var g_delta_t = 0.00005;
+var sun_mass = 4000.0;
+
+var min_orbital_radius = 0.3;  // anything past 1.0 may not be visible
+var max_orbital_radius = 0.8;
+
+var min_eccentricity = 1.0;  // > 0 
+var max_eccentricity = 1.0;  // > 0  
+
+var min_mass = 0.01;  // too heavy relative to Sun will de-stablize Sun
+var max_mass = 0.1;
+
+var flipped_orbit_probability = 0.1;
+
+var particle_system = null;
+
+// Graphics
 
 var canvas = null;
 var gl = null;
@@ -9,8 +28,8 @@ var clear_color = [0.0,0.0,0.0,1.0];
 var shader_program = null;
 var attribute_vertex = null;
 
-var particle_system = null;
-var g_delta_t = 0.00005;
+
+//mat4.perspective(projection_matrix, 0.5 * Math.PI, canvas.width/canvas.height, near_clip_plane_distance, far_clip_plane_distance );
 
 // Universal Law of Gravitation:
 //
@@ -125,6 +144,10 @@ class Particle {
         // TODO: Does not handle 3D yet.
         var line_dir_x = -1.0 * diff_y;
         var line_dir_y = diff_x;
+        if( Math.random() < flipped_orbit_probability ) {
+            line_dir_x *= -1.0;
+            line_dir_y *= -1.0;
+        }
         var vec_length = Math.sqrt((line_dir_x**2) + (line_dir_y**2));
         line_dir_x = line_dir_x / vec_length;
         line_dir_y = line_dir_y / vec_length;
@@ -161,11 +184,6 @@ class ParticleSystem {
              this.vertex_buffer[index++] = this.particles[p].y;
              this.vertex_buffer[index++] = this.particles[p].z;
         }
-        // for( var p = 0; p < this.particles.length; ++p ) {
-        //     this.vertex_buffer[index++] = this.particles[p].x/AU;
-        //     this.vertex_buffer[index++] = this.particles[p].y/AU;
-        //     this.vertex_buffer[index++] = this.particles[p].z/AU;
-        // }
         gl.bindBuffer(gl.ARRAY_BUFFER, this.gl_vertex_buffer);
         gl.bufferData(gl.ARRAY_BUFFER, this.vertex_buffer, gl.DYNAMIC_DRAW);
         gl.vertexAttribPointer(attribute_vertex,3,gl.FLOAT,false,0,0);
@@ -280,15 +298,15 @@ function main() {
 
     setup_shaders();
 
-    var particle_count = 10;
-    var sun_mass = 4000.0;
-
-    var earth_circ_v = Math.sqrt( G * sun_mass / 0.5);
-
     particle_system = new ParticleSystem(gl, particle_count+1);
     particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, sun_mass) ); // Sun
     for( var c = 0; c < particle_count; ++c ) {
          var p = Particle.genererate_random_particle(0.0, 0.0, 0.0, sun_mass, 0.1, 0.8, 0.4, 1.0, 0.01, 0.1); 
+         var p = Particle.genererate_random_particle(
+            0.0, 0.0, 0.0, sun_mass,   // sun x,y,z and mass
+            min_orbital_radius, max_orbital_radius,  
+            min_eccentricity, max_eccentricity,
+            min_mass, max_mass );
          particle_system.add_particle( p );
     }
 
