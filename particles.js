@@ -14,7 +14,7 @@ var attribute_vertex = null;
 var gl_vertex_buffer = null;
 
 var particle_system = null;
-var g_delta_t = 0.0005;
+var g_delta_t = 0.00005;
 
 // Universal Law of Gravitation:
 //
@@ -128,14 +128,31 @@ class Particle {
         //console.log("scaled: x = " + this.x/AU + " y = " + this.y/AU + " z = " + this.z/AU);
     }
 
-    // static genererate_random_particle(sun_x, sun_y, sun_z, sun_mass, radius_min, radius_max, eccen_min, eccen_max, mass_min, mass_max) {
-    //     var radius = (radius_max-radius_min) * Math.random() + radius_min;
-    //     var angle  = (2*Math.PI) * Math.random();
-    //     var eccen  = (eccen_max - eccen_min) * Math.random() + eccen_min;
-    //     var mass   = (mass_max - mass_min) * Math.random() + mass_min;
+    static genererate_random_particle(sun_x, sun_y, sun_z, sun_mass, radius_min, radius_max, eccen_min, eccen_max, mass_min, mass_max) {
+        var radius = (radius_max-radius_min) * Math.random() + radius_min;
+        var angle  = (2*Math.PI) * Math.random();
+        var eccen  = (eccen_max - eccen_min) * Math.random() + eccen_min;
+        var mass   = (mass_max - mass_min) * Math.random() + mass_min;
 
-    //     //var tangent_velocity = 
-    // }
+        var circular_tangent_velocity = Math.sqrt( G * sun_mass / radius ) * eccen;
+        // Point on circle is:
+        var px = radius * Math.cos(angle);
+        var py = radius * Math.sin(angle);
+        // Tangent vector is:
+        var diff_x = px - sun_x;
+        var diff_y = py - sun_y;
+        // TODO: Does not handle 3D yet.
+        var line_dir_x = -1.0 * diff_y;
+        var line_dir_y = diff_x;
+        var vec_length = Math.sqrt((line_dir_x**2) + (line_dir_y**2));
+        line_dir_x = line_dir_x / vec_length;
+        line_dir_y = line_dir_y / vec_length;
+        var vx = circular_tangent_velocity * line_dir_x;
+        var vy = circular_tangent_velocity * line_dir_y;
+
+        var particle = new Particle(px, py, 0.0, vx, vy, 0.0, mass);
+        return( particle );
+    }
 
 }
 
@@ -288,16 +305,25 @@ function main() {
 
     setup_shaders();
 
-    var particle_count = 2;
+    var particle_count = 10;
+    var sun_mass = 4000.0;
 
-    var earth_circ_v = Math.sqrt( G * 400.0 / 0.5);
+    var earth_circ_v = Math.sqrt( G * sun_mass / 0.5);
     //console.log(earth_circ_v);
     //exit ;
 
-    particle_system = new ParticleSystem(gl, particle_count);
-    particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0) ); // Sun
-    particle_system.add_particle( new Particle( 0.5, 0.0, 0.0, 0.0, earth_circ_v, 0.0, 0.1) ); // Earth
-    //particle_system.add_particle( new Particle( 150.25E9, 0.0, 0.0, 0.0, 29000.0, 0.0, 6.39E23) ); // Mars
+    particle_system = new ParticleSystem(gl, particle_count+1);
+    particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, sun_mass) ); // Sun
+    for( var c = 0; c < particle_count; ++c ) {
+         var p = Particle.genererate_random_particle(0.0, 0.0, 0.0, sun_mass, 0.1, 0.8, 0.4, 1.0, 0.01, 0.1); 
+         particle_system.add_particle( p );
+    }
+    // //particle_system.add_particle( new Particle( 0.5, 0.0, 0.0, 0.0, earth_circ_v, 0.0, 0.1) ); // Earth
+    // var p = Particle.genererate_random_particle(0.0, 0.0, 0.0, 400.0, 0.5, 0.5, 1.0, 1.0, 0.1, 0.1); 
+    // particle_system.add_particle( p ); // Earth
+    // var p = Particle.genererate_random_particle(0.0, 0.0, 0.0, 400.0, 0.6, 0.6, 1.0, 1.0, 1.0, 1.0); 
+    // particle_system.add_particle( p ); // Earth
+    // //particle_system.add_particle( new Particle( 150.25E9, 0.0, 0.0, 0.0, 29000.0, 0.0, 6.39E23) ); // Mars
 
     // var particle_count = 1000;
 
