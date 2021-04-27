@@ -8,7 +8,7 @@ var g_delta_t = 0.00005;  // time step
 
 var G_n_body = 10.0;
 var epsilon_n_body = 0.01;
-var g_delta_t_n_body = 0.00001;  // time step
+var g_delta_t_n_body = 0.00005;  // time step
 
 var G_solar_system = 1.0;
 var epsilon_solar_system = 0.00000001;
@@ -36,6 +36,13 @@ var n_body_min_y = -1.0;
 var n_body_max_y = 1.0;
 var n_body_min_mass = 10.0;
 var n_body_max_mass = 100.0;
+
+// var n_body_min_x = -0.1;
+// var n_body_max_x = 0.1;
+// var n_body_min_y = -0.5;
+// var n_body_max_y = 0.5;
+// var n_body_min_mass = 10.0;
+// var n_body_max_mass = 100.0;
 
 var particle_system = null;
 
