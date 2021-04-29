@@ -1,21 +1,26 @@
 
+var collision_detection = false;
+var simulate_n_body = true;
+
 // Gravity system parameters.
+var particle_count = 1000;
 
 var G = 1.0;  // barely any gravity
 var epsilon = 0.000000001;
 var g_delta_t = 0.00005;  // time step
 
 
-var G_n_body = 10.0;
-var epsilon_n_body = 0.01;
+var G_n_body = 1.0;
+//var epsilon_n_body = 0.01;
+var epsilon_n_body = 0.001;
 var g_delta_t_n_body = 0.00005;  // time step
 
 var G_solar_system = 1.0;
 var epsilon_solar_system = 0.00000001;
 var g_delta_t_solar_system = 0.00005;  // time step
 
-var particle_count = 1000;
-var sun_mass = 4000.0;
+var sun_mass = 40000.0;
+var sun_radius = 1.0/512.0;
 
 var min_orbital_radius = 0.3;  // anything past 1.0 may not be visible
 var max_orbital_radius = 0.8;
@@ -26,9 +31,10 @@ var max_eccentricity = 1.0;  // > 0
 var min_mass = 0.01;  // too heavy relative to Sun will de-stablize Sun
 var max_mass = 0.1;
 
-var flipped_orbit_probability = 0.1;
+var min_radius = 1/512.0;
+var max_radius = 1.001/512.0;
 
-var simulate_n_body = true;
+var flipped_orbit_probability = 0.1;
 
 var n_body_min_x = -1.0;
 var n_body_max_x = 1.0;
@@ -36,6 +42,10 @@ var n_body_min_y = -1.0;
 var n_body_max_y = 1.0;
 var n_body_min_mass = 10.0;
 var n_body_max_mass = 100.0;
+//var n_body_min_radius = 0.001;
+//var n_body_max_radius = 0.001;
+var n_body_min_radius = 1.0/512.0;
+var n_body_max_radius = 1.0/512.0;
 
 // var n_body_min_x = -0.1;
 // var n_body_max_x = 0.1;
@@ -95,6 +105,7 @@ class Particle {
         vy,
         vz,
         mass,
+        radius,
         fixed_pos = false
     ) {
         this.x = x;
@@ -110,12 +121,17 @@ class Particle {
         this.az = 0.0;
 
         this.mass = mass;
-
         this.fixed_pos = fixed_pos;
+        this.collided = false;
+        this.radius = radius;
     }
 
     clone( ) {
-        return( new Particle(this.x, this.y, this.z, this.vx, this.vy, this.vz, this.mass, this.fixed_pos ) );
+        var particle = new Particle(this.x, this.y, this.z, 
+                                    this.vx, this.vy, this.vz, 
+                                    this.mass, this.radius, this.fixed_pos);
+        particle.collided = this.collided;
+        return( particle );
     }
 
     reset_acceleration( ) {
@@ -125,9 +141,20 @@ class Particle {
     }
 
     interact( other_particle, bidirectional = true ) {
-        var r2 = (this.x - other_particle.x)**2 + (this.y - other_particle.y)**2 + (this.z - other_particle.z)**2 + epsilon;
+        var r2 = (this.x - other_particle.x)**2 + (this.y - other_particle.y)**2 + (this.z - other_particle.z)**2;  
+        var r = Math.sqrt(r2);
+        var collided = (other_particle.radius + this.radius) > r;
+        if( collided ) {
+            //console.log( "r1 = " + other_particle.radius);
+            if( collision_detection ) {
+                return( true );
+            }
+        }
+        if( r2 < epsilon ) {
+            r2 += epsilon;
+        }
         var F = G * this.mass * other_particle.mass / r2;
-        var rm1 = 1.0/Math.sqrt(r2); 
+        var rm1 = 1.0/r; 
         var a_this = F / this.mass;
         var a_other_particle = F / other_particle.mass;
         this.ax += (a_this * (other_particle.x - this.x) * rm1);
@@ -136,6 +163,8 @@ class Particle {
         other_particle.ax += (a_other_particle * (this.x - other_particle.x) * rm1);
         other_particle.ay += (a_other_particle * (this.y - other_particle.y) * rm1);
         other_particle.az += (a_other_particle * (this.z - other_particle.z) * rm1);
+        //return ( other_particle.radius + this.radius > r ); // return collision boolean
+        return ( false ); // return collision boolean
     }
  
     update( delta_t ) {
@@ -177,8 +206,9 @@ class Particle {
         line_dir_y = line_dir_y / vec_length;
         var vx = circular_tangent_velocity * line_dir_x;
         var vy = circular_tangent_velocity * line_dir_y;
+        var radius = Particle.compute_radius( mass_min, mass_max, mass, min_radius, max_radius );
 
-        var particle = new Particle(px, py, 0.0, vx, vy, 0.0, mass);
+        var particle = new Particle(px, py, 0.0, vx, vy, 0.0, mass, radius);
         return( particle );
     }
 
@@ -187,9 +217,16 @@ class Particle {
         var px   = (max_x - min_x) * Math.random() + min_x;
         var py   = (max_y - min_y) * Math.random() + min_y;
         var mass   = (mass_max - mass_min) * Math.random() + mass_min;
+        var radius = Particle.compute_radius( mass_min, mass_max, mass, n_body_min_radius, n_body_max_radius );
 
-        var particle = new Particle(px, py, 0.0, 0.0, 0.0, 0.0, mass);
+        var particle = new Particle(px, py, 0.0, 0.0, 0.0, 0.0, mass, radius );
         return( particle );
+    }
+
+    static compute_radius( mass_min, mass_max, mass, min_radius, max_radius ) {
+        var m = (max_radius - min_radius) / (mass_max - mass_min);
+        var r = m * (mass - mass_min) + min_radius;
+        return( r );
     }
 
 }
@@ -224,6 +261,7 @@ class ParticleSystem {
         gl.drawArrays(gl.POINTS,0,this.particles.length);
     }
     update( delta_t ) {
+        var collision_dict = {};
         for( var p = 0; p < this.particles.length; ++p ) {
             // Reset for this round of acceleration.
             this.particles[p].reset_acceleration();
@@ -232,13 +270,167 @@ class ParticleSystem {
         for( var m = 0; m < this.particles.length-1; ++m ) {
             var particle_m = this.particles[m];
             for( var n = m+1; n < this.particles.length; ++n ) {
-                particle_m.interact(this.particles[n]);
+                var collide = particle_m.interact(this.particles[n]);
+                if( collide && collision_detection ) {
+                    if( m in collision_dict ) {
+                        collision_dict[m].outstanding[n] = 1;
+                    } else {
+                        collision_dict[m] = {"outstanding" : {}, "merged" : {}};
+                        collision_dict[m].outstanding[n] = 1;
+                        collision_dict[m].merged[m] = 1;
+                    }
+                    if( n in collision_dict ) {
+                        collision_dict[n].outstanding[m] = 1;
+                    } else {
+                        collision_dict[n] = {"outstanding" : {}, "merged" : {}};
+                        collision_dict[n].outstanding[m] = 1;
+                        collision_dict[n].merged[n] = 1;
+                    }
+                }
             }
         }
-        //exit
+        if( collision_detection && Object.keys(collision_dict).length > 0 ) {
+            this.resolve_collisions( collision_dict );
+            var delete_particle_indices = Object.keys(collision_dict);
+            var merged_particles = [];
+            for( var co_key in collision_dict ) {
+                var merge_list = Object.keys(collision_dict[co_key].merged);
+                if( merge_list.length > 1 ) {
+                    merged_particles.push( this.merge_particles( merge_list ) );
+                }
+            }
+
+            this.delete_particles( delete_particle_indices );
+            for( var m = 0; m < merged_particles.length; ++m ) {
+                this.particles.push( merged_particles[m] );
+            }
+            //console.log("count = " + this.particles.length);
+        }
+
         // Update positions
         for( var m = 0; m < this.particles.length; ++m ) {
             this.particles[m].update(g_delta_t);
+        }
+    }
+
+    delete_particles( delete_indices ) {
+        var updated_list = [];
+        for( var i = 0; i < this.particles.length; ++i ) {
+            var delete_flag = false;
+            for( var j = 0; j < delete_indices.length; ++j ) {
+                if( i == delete_indices[j] ) {
+                    delete_flag = true;
+                    break;
+                }
+            }
+            if( !delete_flag ) {
+                updated_list.push( this.particles[i] );
+            }
+        }
+        this.particles = updated_list;
+    }
+
+    merge_particles( merge_list ) {
+        var mass_sum = 0.0;
+        var pos_x = 0.0;
+        var pos_y = 0.0;
+        var pos_z = 0.0;
+        var vel_x = 0.0;
+        var vel_y = 0.0;
+        var vel_z = 0.0;
+        var merge_count = merge_list.length * 1.0;
+        for( var pi = 0; pi < merge_list.length; ++pi ) {
+            var p = merge_list[pi];
+            mass_sum += this.particles[p].mass;
+            pos_x += this.particles[p].x;
+            pos_y += this.particles[p].y;
+            pos_z += this.particles[p].z;
+        }
+        pos_x /= merge_count;
+        pos_y /= merge_count;
+        pos_z /= merge_count;
+        for( var pi = 0; pi < merge_list.length; ++pi ) {
+            var p = merge_list[pi];
+            var mass_fraction = this.particles[p].mass/mass_sum;
+            vel_x += (mass_fraction*this.particles[p].vx);
+            vel_y += (mass_fraction*this.particles[p].vy);
+            vel_z += (mass_fraction*this.particles[p].vz);
+            //console.log("vel_x = " + vel_x);
+            //console.log("vel_y = " + vel_y);
+            //console.log("vel_z = " + vel_z);
+        }
+
+        var radius = null;
+        if( simulate_n_body ) {
+            radius = Particle.compute_radius(n_body_min_mass, n_body_max_mass, mass_sum, n_body_min_radius, n_body_max_radius);
+        } else {
+            radius = Particle.compute_radius(min_mass, max_mass, mass_sum, min_radius, max_radius);
+        }
+        var particle = new Particle( pos_x, pos_y, pos_z, vel_x, vel_y, vel_z, mass_sum, radius );
+        return( particle );
+    }
+
+    print_collision_dict( collision_dict ) {
+        var key_list = Object.keys(collision_dict);
+        key_list.sort( function( a, b ) { return( a - b ); } );
+        for( var i = 0; i < key_list.length; ++i ) {
+            var co_key = key_list[i];
+            console.log( co_key + " -> outstanding [ " + Object.keys(collision_dict[co_key].outstanding) + 
+                         " ] : merged [ " + Object.keys(collision_dict[co_key].merged) + " ] " );
+        }
+    }
+
+    resolve_collisions( collision_dict ) {
+        //this.print_collision_dict( collision_dict);
+        //console.log(" ======== ");
+        var key_list = Object.keys(collision_dict);
+        key_list.sort( function( a, b ) { return( a - b ); } );
+
+        if( key_list.length == 0 ) {
+            return;
+        }
+
+        var key_list_index = 0;
+        var current_merge = null;
+        var current_outstanding = null;
+        while( key_list_index < key_list.length ) {
+            current_merge = key_list[key_list_index];
+            var outstanding_keys = Object.keys(collision_dict[current_merge].outstanding);
+            if( outstanding_keys.length == 0 ) {  // No merges outstanding.
+                ++key_list_index;
+                continue;
+            }
+            // Get an element from outstanding keys.
+            current_outstanding = outstanding_keys[0];
+            // Get current_outstanding's merged dict and merge into current_merge merge list.
+            for( var co_key in collision_dict[current_outstanding].merged ) {
+                collision_dict[current_merge].merged[co_key] = 1;
+            }
+            // Place current_outstanding's outstanding keys and place into current_marge outstanding keys,
+            // except if the key is either current_merge or current_outstanding merage.
+            for( var co_key in collision_dict[current_outstanding].outstanding ) {
+                if( !((co_key == current_merge) || (co_key == current_outstanding)) ) {
+                    collision_dict[current_merge].outstanding[co_key] = 1;
+                }
+            }
+
+            // Delete current_outstanding's outstanding dict. (set to empty dict, actually)
+            collision_dict[current_outstanding].outstanding = {};
+
+            // Visit all other collision_dicts outstanding and replace current_outstanding with current_merge.
+             
+            for( var i = 0; i < key_list.length; ++i ) {
+                var co_key = key_list[i];
+                if( co_key != current_merge ) {
+                    if( current_outstanding in collision_dict[co_key].outstanding ) {
+                        collision_dict[co_key].outstanding[current_merge] = 1;
+                        delete( collision_dict[co_key].outstanding[current_outstanding] );
+                    }
+                }
+            }
+
+            // Remove current_outstanding from current_merge's outstanding.
+            delete( collision_dict[current_merge].outstanding[current_outstanding] );
         }
     }
 }
@@ -344,7 +536,7 @@ function main() {
 
     particle_system = new ParticleSystem(gl, particle_count+1);
     if( !simulate_n_body ) {
-        particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, sun_mass) ); // Sun
+        particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, sun_mass, sun_radius ) ); // Sun
     }
     for( var c = 0; c < particle_count; ++c ) {
         var p = null;
@@ -360,7 +552,7 @@ function main() {
                 min_eccentricity, max_eccentricity,
                 min_mass, max_mass );
         }
-         particle_system.add_particle( p );
+        particle_system.add_particle( p );
     }
 
     render_scene();
