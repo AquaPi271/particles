@@ -1,14 +1,17 @@
 
-var collision_detection = false;
+var collision_detection = true;
 var simulate_n_body = true;
 var add_lines = true;
 var add_lines_points = 30;
+
+var particle_color = [1.0, 1.0, 0.0];
+var particle_tail_color = [1.0, 0.0, 1.0];
 
 const mode_points = 1;
 const mode_lines = 2;
 
 // Gravity system parameters.
-var particle_count = 30;
+var particle_count = 300;
 
 var G = 1.0;  // barely any gravity
 var epsilon = 0.000000001;
@@ -68,6 +71,7 @@ var gl = null;
 var clear_color = [0.0,0.0,0.0,1.0];
 var shader_program = null;
 var attribute_vertex = null;
+var attribute_color = null;
 var uniform_mode = null;
 
 
@@ -112,6 +116,7 @@ class Particle {
         vz,
         mass,
         radius,
+        color,
         fixed_pos = false
     ) {
         this.x = x;
@@ -128,6 +133,7 @@ class Particle {
 
         this.mass = mass;
         this.fixed_pos = fixed_pos;
+        this.color = color.slice();
         this.radius = radius;
 
         this.lines_points = [];
@@ -137,7 +143,7 @@ class Particle {
     clone( ) {
         var particle = new Particle(this.x, this.y, this.z, 
                                     this.vx, this.vy, this.vz, 
-                                    this.mass, this.radius, this.fixed_pos);
+                                    this.mass, this.radius, this.color, this.fixed_pos);
         for( var lp_i = 0; lp_i < this.lines_points.length; ++lp_i ) {
             particle.lines_points.push( this.lines_points[lp_i] );
         }
@@ -203,29 +209,41 @@ class Particle {
         }
     }
 
-    add_lines_to_vertex_buffer( lines_vertex_buffer, lvb_index ) {
+    add_lines_to_vertex_buffer( lines_vertex_buffer, lvb_index, lines_vertex_color_buffer ) {
         if( this.lines_points.length == 0 ) {
             return( lines_vb_index );
         }
         var insert_index_start = this.lines_index;
         for( var lp_i = 0; lp_i < this.lines_points.length / 3; ++lp_i ) {
             if( lp_i == 0 ) {
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[0];
                 lines_vertex_buffer[lvb_index++] = this.x;
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[1];
                 lines_vertex_buffer[lvb_index++] = this.y;
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[2];
                 lines_vertex_buffer[lvb_index++] = this.z;
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[0];
                 lines_vertex_buffer[lvb_index++] = this.lines_points[insert_index_start * 3];
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[1];
                 lines_vertex_buffer[lvb_index++] = this.lines_points[insert_index_start * 3 + 1];
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[2];
                 lines_vertex_buffer[lvb_index++] = this.lines_points[insert_index_start * 3 + 2];
             } else {
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[0];
                 lines_vertex_buffer[lvb_index++] = this.lines_points[insert_index_start * 3];
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[1];
                 lines_vertex_buffer[lvb_index++] = this.lines_points[insert_index_start * 3 + 1];
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[2];
                 lines_vertex_buffer[lvb_index++] = this.lines_points[insert_index_start * 3 + 2];
                 ++insert_index_start;
                 if( (3 * insert_index_start) >= this.lines_points.length ) {
                     insert_index_start = 0;
                 }
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[0];
                 lines_vertex_buffer[lvb_index++] = this.lines_points[insert_index_start * 3];
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[1];
                 lines_vertex_buffer[lvb_index++] = this.lines_points[insert_index_start * 3 + 1];
+                lines_vertex_color_buffer[lvb_index] = particle_tail_color[2];
                 lines_vertex_buffer[lvb_index++] = this.lines_points[insert_index_start * 3 + 2];
             }
         }
@@ -259,7 +277,7 @@ class Particle {
         var vy = circular_tangent_velocity * line_dir_y;
         var radius = Particle.compute_radius( mass_min, mass_max, mass, min_radius, max_radius );
 
-        var particle = new Particle(px, py, 0.0, vx, vy, 0.0, mass, radius);
+        var particle = new Particle(px, py, 0.0, vx, vy, 0.0, mass, radius, particle_color);
         return( particle );
     }
 
@@ -270,7 +288,7 @@ class Particle {
         var mass   = (mass_max - mass_min) * Math.random() + mass_min;
         var radius = Particle.compute_radius( mass_min, mass_max, mass, n_body_min_radius, n_body_max_radius );
 
-        var particle = new Particle(px, py, 0.0, 0.0, 0.0, 0.0, mass, radius );
+        var particle = new Particle(px, py, 0.0, 0.0, 0.0, 0.0, mass, radius, particle_color );
         return( particle );
     }
 
@@ -292,8 +310,12 @@ class ParticleSystem {
         this.line_count = (add_lines_points + 1) * (particle_count);
         this.gl_vertex_buffer = gl.createBuffer();
         this.gl_lines_vertex_buffer = gl.createBuffer();
+        this.gl_vertex_color_buffer = gl.createBuffer();
+        this.gl_lines_vertex_color_buffer = gl.createBuffer();
         this.vertex_buffer = new Float32Array(this.particle_count * 3);
         this.lines_vertex_buffer = new Float32Array(this.line_count * 3 * 2);
+        this.vertex_color_buffer = new Float32Array(this.particle_count * 3);
+        this.lines_vertex_color_buffer = new Float32Array(this.line_count * 3 * 2);
         this.particles = [];
     }
     add_particle( particle ) {
@@ -306,25 +328,34 @@ class ParticleSystem {
     draw(gl) {
         var index = 0;
         for( var p = 0; p < this.particles.length; ++p ) {
-             this.vertex_buffer[index++] = this.particles[p].x;
-             this.vertex_buffer[index++] = this.particles[p].y;
-             this.vertex_buffer[index++] = this.particles[p].z;
+            this.vertex_color_buffer[index] = this.particles[p].color[0]; 
+            this.vertex_buffer[index++] = this.particles[p].x;
+            this.vertex_color_buffer[index] = this.particles[p].color[1]; 
+            this.vertex_buffer[index++] = this.particles[p].y;
+            this.vertex_color_buffer[index] = this.particles[p].color[2]; 
+            this.vertex_buffer[index++] = this.particles[p].z;
         }
         gl.uniform1i(uniform_mode, mode_points);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.gl_vertex_buffer);
         gl.bufferData(gl.ARRAY_BUFFER, this.vertex_buffer, gl.DYNAMIC_DRAW);
         gl.vertexAttribPointer(attribute_vertex,3,gl.FLOAT,false,0,0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.gl_vertex_color_buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this.vertex_color_buffer, gl.DYNAMIC_DRAW);
+        gl.vertexAttribPointer(attribute_color,3,gl.FLOAT,false,0,0);
         gl.drawArrays(gl.POINTS,0,this.particles.length);
         if( add_lines ) {
             var lvb_index = 0;
             for( var p = 0; p < this.particles.length; ++p ) {
-                lvb_index = this.particles[p].add_lines_to_vertex_buffer( this.lines_vertex_buffer, lvb_index );
+                lvb_index = this.particles[p].add_lines_to_vertex_buffer( this.lines_vertex_buffer, lvb_index, this.lines_vertex_color_buffer );
             }
             // Points all set, let's draw.
             gl.uniform1i(uniform_mode, mode_lines);      
             gl.bindBuffer(gl.ARRAY_BUFFER, this.gl_lines_vertex_buffer);
             gl.bufferData(gl.ARRAY_BUFFER, this.lines_vertex_buffer, gl.DYNAMIC_DRAW);            
             gl.vertexAttribPointer(attribute_vertex,3,gl.FLOAT,false,0,0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.gl_lines_vertex_color_buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, this.lines_vertex_color_buffer, gl.DYNAMIC_DRAW);            
+            gl.vertexAttribPointer(attribute_color,3,gl.FLOAT,false,0,0);
             // for( var p = 0; p < this.particles.length; ++p ) {
             //     if( this.particles[p].lines_points.length > 0 ) {
             //         gl.drawArrays(gl.LINES, this.particles[p].lines_vb_offset, (1 + this.particles[p].lines_points.length));
@@ -439,7 +470,7 @@ class ParticleSystem {
         } else {
             radius = Particle.compute_radius(min_mass, max_mass, mass_sum, min_radius, max_radius);
         }
-        var particle = new Particle( pos_x, pos_y, pos_z, vel_x, vel_y, vel_z, mass_sum, radius );
+        var particle = new Particle( pos_x, pos_y, pos_z, vel_x, vel_y, vel_z, mass_sum, radius, particle_color );
         return( particle );
     }
 
@@ -532,21 +563,27 @@ function setup_shaders( ) {
         precision mediump float;
         uniform int mode;
         attribute vec3 vertex_position;
+        attribute vec3 a_color;
+        varying vec3 v_color;
 
         void main(void) {
             gl_PointSize = 3.0;
             gl_Position = vec4(vertex_position,1.0);
+            v_color = a_color;
         }
     `;
 
     var fragment_shader_source = `
         precision mediump float;
         uniform int mode;
+        varying lowp vec3 v_color;
         void main(void) {    
             if( mode == 1 ) {
-                gl_FragColor = vec4(0.0,1.0,0.0,1.0);
+                //gl_FragColor = vec4(0.0,1.0,0.0,1.0);
+                gl_FragColor = vec4(v_color,1.0);
             } else {
-                gl_FragColor = vec4(1.0,0.0,0.0,1.0);
+                //gl_FragColor = vec4(1.0,0.0,0.0,1.0);
+                gl_FragColor = vec4(v_color,1.0);
             }
         }
     `;
@@ -578,8 +615,10 @@ function setup_shaders( ) {
 
         gl.useProgram( shader_program );
         attribute_vertex = gl.getAttribLocation(shader_program, "vertex_position");
+        attribute_color = gl.getAttribLocation(shader_program, "a_color");
         uniform_mode = gl.getUniformLocation(shader_program, "mode");
         gl.enableVertexAttribArray(attribute_vertex);
+        gl.enableVertexAttribArray(attribute_color);
     }
 
     catch(e) {
@@ -616,7 +655,7 @@ function main() {
 
     particle_system = new ParticleSystem(gl, particle_count+1, (particle_count+1)*(add_lines_points+1));
     if( !simulate_n_body ) {
-        particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, sun_mass, sun_radius ) ); // Sun
+        particle_system.add_particle( new Particle( 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, sun_mass, sun_radius, particle_color ) ); // Sun
     }
     for( var c = 0; c < particle_count; ++c ) {
         var p = null;
