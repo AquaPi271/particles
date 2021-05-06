@@ -35,7 +35,7 @@ Attempt computations mostly or nearly wholly on GPU via TransformFeedbacks.  Exp
   [DONE] a) Modify Newton's law by scaling for reasonable units.
 [DONE] 3.  2D collision and merge using simple radius / distance.  Use simple ratioed mass / velocity.
 [DONE] 4.  Line trails.
-5.  Super-nova.
+[DONE] 5.  Super-nova.
 6.  Render simple sprite in 3D space.
 7.  Add camera controls.
 8.  Modify sprite to be view plane aligned.
@@ -43,3 +43,31 @@ Attempt computations mostly or nearly wholly on GPU via TransformFeedbacks.  Exp
 10. Try to do simple system (Sun + Earth) in 3D.
 11. Need to figure Z components of position, velocity, and acceleration.
 
+Breakdown of Supernova:
+
+ParticleSN
+==========
+
+[DONE] 1) Particle will have these parameters:
+   a) position 
+   b) velocity
+   c) direction (normalized)
+   c) rule enumeration
+   d) color
+[DONE] 2) Initial rule is simple fixed acceleration (negative).
+[DONE] 3) When reaching <= 0 velocity, lifetime ends.
+
+ParticleSystemSN
+================
+
+[DONE] Tracks total particles alive in system.
+[DONE] Must resize buffer to bigger if more particles are needed.
+[DONE] Will need to resize both color and name buffer.
+
+ParticleGeneratorSN
+===================
+
+[DONE] 1) Color is randomized.
+[DONE] 2) Direction is randomized in uniform sphere to 2 dimensions.
+[DONE] 3) Number of particles per shell.
+[DONE] 4) Number of shells is probability per each rendering pass.
