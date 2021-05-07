@@ -48,6 +48,7 @@ class Camera {
 
 		// var dist = ((this.position[0]-trans_point[0])**2 + (this.position[1]-trans_point[1])**2 + (this.position[2]-trans_point[2])**2);
 		// console.log("distance = " + dist);
+		//console.log(this.camera_matrix);
 	}
 
 	get_up_vector() {
