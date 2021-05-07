@@ -3,7 +3,7 @@ var particle_color = [1.0, 1.0, 0.0];
 const mode_points = 1;
 const mode_lines = 2;
 
-var particle_count = 200;
+var particle_count = 100;
 var gen_probability = 0.1;
 
 var g_delta_t = 0.005;  // time step
@@ -196,6 +196,9 @@ class ParticleSystemSN {
 
         if( Math.random() < gen_probability ) {
             var random_color = [Math.random(), Math.random(), Math.random()];
+            // Up to particle count randomly chosen.
+            // for( var c = 0; c < particle_count; ++c ) {
+            var pc = Math.trunc( Math.random() * particle_count );
             for( var c = 0; c < particle_count; ++c ) {
                 var p = null;
                 p = ParticleSN.generate_random_particle( random_color );
