@@ -37,8 +37,8 @@ Attempt computations mostly or nearly wholly on GPU via TransformFeedbacks.  Exp
 [DONE] 4.  Line trails.
 [DONE] 5.  Super-nova.
 6.  Render simple sprite in 3D space.
-7.  Add camera controls.
-8.  Modify sprite to be view plane aligned.
+[DONE] 7.  Add camera controls.
+[DONE] 8.  Modify sprite to be view plane aligned.
 9.  Add several sprites.
 10. Try to do simple system (Sun + Earth) in 3D.
 11. Need to figure Z components of position, velocity, and acceleration.

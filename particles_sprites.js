@@ -33,6 +33,7 @@ var uniform_projection_matrix = null;
 
 var canvas = null;       // HTML canvas to render WebGL
 
+var sprite_location = vec3.fromValues( 0.0, 0.0, -1.0 );
 
 
 function handle_key_down(event) {
@@ -262,15 +263,64 @@ function add_sprite_vertices( sprite_vertex_buffer ) {
 
 }
 
+function update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_point ) {
+
+    // Make a square from two rectangles and place a Z=0 for now.
+
+    //var z = -1.0;
+    //var scale = 1.0;
+
+    // var UL = vec3.fromValues( scale*-0.5, scale*0.5, z);
+    // var UR = vec3.fromValues( scale*0.5, scale*0.5, z);
+    // var LL = vec3.fromValues( scale*-0.5, scale*-0.5, z);
+    // var LR = vec3.fromValues( scale*0.5, scale*-0.5, z);
+
+    var UL = vec3.fromValues( -0.5 + vec4_point[0],  0.5 + vec4_point[1], vec4_point[2] );
+    var UR = vec3.fromValues(  0.5 + vec4_point[0],  0.5 + vec4_point[1], vec4_point[2] );
+    var LL = vec3.fromValues( -0.5 + vec4_point[0], -0.5 + vec4_point[1], vec4_point[2] );
+    var LR = vec3.fromValues(  0.5 + vec4_point[0], -0.5 + vec4_point[1], vec4_point[2] );
+
+    var index = 0;
+
+    // First triangle.
+
+    sprite_vertex_buffer[index++] = UL[0];
+    sprite_vertex_buffer[index++] = UL[1];
+    sprite_vertex_buffer[index++] = UL[2];
+    sprite_vertex_buffer[index++] = UR[0];
+    sprite_vertex_buffer[index++] = UR[1];
+    sprite_vertex_buffer[index++] = UR[2];
+    sprite_vertex_buffer[index++] = LL[0];
+    sprite_vertex_buffer[index++] = LL[1];
+    sprite_vertex_buffer[index++] = LL[2];
+
+    // Second triangle.
+    
+    sprite_vertex_buffer[index++] = UR[0];
+    sprite_vertex_buffer[index++] = UR[1];
+    sprite_vertex_buffer[index++] = UR[2];
+    sprite_vertex_buffer[index++] = LR[0];
+    sprite_vertex_buffer[index++] = LR[1];
+    sprite_vertex_buffer[index++] = LR[2];
+    sprite_vertex_buffer[index++] = LL[0];
+    sprite_vertex_buffer[index++] = LL[1];
+    sprite_vertex_buffer[index++] = LL[2];
+
+}
+
 function render_scene() {
     gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
 
-    var mat4_pc_matrix = mat4.create();
+    // var mat4_pc_matrix = mat4.create();
 
-    mat4.multiply( mat4_pc_matrix, mat4_projection_matrix, camera.get_camera_matrix() );
+    // mat4.multiply( mat4_pc_matrix, mat4_projection_matrix, camera.get_camera_matrix() );
 
-    //gl.uniformMatrix4fv(uniform_projection_matrix, false, mat4_projection_matrix);
-    gl.uniformMatrix4fv(uniform_projection_matrix, false, mat4_pc_matrix);
+    var vec4_transformed_point = vec4.create();
+    vec4.transformMat4( vec4_transformed_point, vec4.fromValues(sprite_location[0], sprite_location[1], sprite_location[2], 1.0), camera.get_camera_matrix() );
+    update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_transformed_point );
+
+    gl.uniformMatrix4fv(uniform_projection_matrix, false, mat4_projection_matrix);
+    //gl.uniformMatrix4fv(uniform_projection_matrix, false, mat4_pc_matrix);
     gl.bindBuffer(gl.ARRAY_BUFFER, sprite_gl_buffer);
     gl.bufferData(gl.ARRAY_BUFFER, sprite_vertex_buffer, gl.DYNAMIC_DRAW);
     gl.vertexAttribPointer(attr_vertex_position,3,gl.FLOAT,false,0,0);
