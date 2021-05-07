@@ -36,7 +36,7 @@ Attempt computations mostly or nearly wholly on GPU via TransformFeedbacks.  Exp
 [DONE] 3.  2D collision and merge using simple radius / distance.  Use simple ratioed mass / velocity.
 [DONE] 4.  Line trails.
 [DONE] 5.  Super-nova.
-6.  Render simple sprite in 3D space.
+[DONE] 6.  Render simple sprite in 3D space.
 [DONE] 7.  Add camera controls.
 [DONE] 8.  Modify sprite to be view plane aligned.
 9.  Add several sprites.

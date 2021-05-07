@@ -8,6 +8,10 @@ var shader_program            = null;                                   // compi
 
 var sprite_gl_buffer          = null;
 var sprite_vertex_buffer      = null;
+var sprite_gl_uv_buffer       = null;
+var sprite_uv_buffer          = null;
+
+var mass_texture              = null;
 
 // Projection and camera
 
@@ -28,6 +32,8 @@ var far_clip_plane_distance   = 10.0;
 
 var attr_vertex_position      = null;                                   // attribute to vertex buffer
 var uniform_projection_matrix = null;
+var attr_vertex_uv            = null;
+var uniform_texture           = null;
 
 // HTML globals
 
@@ -128,23 +134,21 @@ function setup_shaders() {
     // define vertex shader in essl using es6 template strings
     var vertex_shader_source = `
         attribute vec3 attr_vertex_position; // vertex position
-        //attribute vec2 aVertexUV;       // vertex texture uv
+        attribute vec2 attr_vertex_uv;       // vertex texture uv
 
         uniform mat4 uniform_projection_matrix;   // projection matrix only (for billboarding must run camera outside of shader) 
 
-        //varying vec3 vWorldPos;         // interpolated world position of vertex
-        //varying vec2 vVertexUV;         // interpolated uv for frag shader
+        varying vec2 vary_vertex_uv;         // interpolated uv for frag shader
 
         void main(void) {
     
             // vertex position
-            //vWorldPos = attr_vertex_position;   // everything is already in global coordinates
-            //gl_Position = upvmMatrix * vec4(attr_vertex_position), 1.0);  // move to camera space!
 
             gl_Position = uniform_projection_matrix * vec4(attr_vertex_position, 1.0);
 
             // vertex uv
-            //vVertexUV = aVertexUV;
+
+            vary_vertex_uv = attr_vertex_uv;
         }
     `;
 
@@ -154,8 +158,8 @@ function setup_shaders() {
         
         // texture properties
         //uniform bool uUsingTexture; // if we are using a texture
-        //uniform sampler2D uTexture; // the texture for the fragment
-        //varying vec2 vVertexUV; // texture uv of fragment
+        uniform sampler2D uniform_texture; // the texture for the fragment
+        varying vec2 vary_vertex_uv; // texture uv of fragment
             
         // geometry properties
         //varying vec3 vWorldPos; // world xyz of fragment
@@ -179,7 +183,10 @@ function setup_shaders() {
         //       //  gl_FragColor = vec4(texColor.rgb, 1.0);
         //    } // end if using texture
 
-            gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+            vec4 tex_color = texture2D(uniform_texture, vec2(vary_vertex_uv.s, vary_vertex_uv.t));
+            gl_FragColor = vec4(tex_color.rgb, 1.0);
+
+            //gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
         } // end main
     `;
 
@@ -211,10 +218,13 @@ function setup_shaders() {
         gl.useProgram( shader_program );
         attr_vertex_position = gl.getAttribLocation(shader_program, "attr_vertex_position");
         gl.enableVertexAttribArray(attr_vertex_position);
+        attr_vertex_uv = gl.getAttribLocation(shader_program, "attr_vertex_uv");
+        gl.enableVertexAttribArray(attr_vertex_uv);
 
         // Get the uniform variables from the shaders
 
-        uniform_projection_matrix = gl.getUniformLocation(shader_program, "uniform_projection_matrix"); // ptr to pvmmat
+        uniform_projection_matrix = gl.getUniformLocation(shader_program, "uniform_projection_matrix"); 
+        uniform_texture = gl.getUniformLocation(shader_program, "uniform_texture");
         //uniform_mode = gl.getUniformLocation(shader_program, "mode");
     }
 
@@ -223,87 +233,104 @@ function setup_shaders() {
     }
 }
 
-function add_sprite_vertices( sprite_vertex_buffer ) {
+function generate_mass_texture( gl ) {
 
-    // Make a square from two rectangles and place a Z=0 for now.
+    // Make a simple circle for now.  Possible include gradient later.
+    // Empty spots must be fully transparent.
 
-    var z = -1.0;
-    var scale = 1.0;
-
-    var UL = vec3.fromValues( scale*-0.5, scale*0.5, z);
-    var UR = vec3.fromValues( scale*0.5, scale*0.5, z);
-    var LL = vec3.fromValues( scale*-0.5, scale*-0.5, z);
-    var LR = vec3.fromValues( scale*0.5, scale*-0.5, z);
-
-    var index = 0;
-
-    // First triangle.
-
-    sprite_vertex_buffer[index++] = UL[0];
-    sprite_vertex_buffer[index++] = UL[1];
-    sprite_vertex_buffer[index++] = UL[2];
-    sprite_vertex_buffer[index++] = UR[0];
-    sprite_vertex_buffer[index++] = UR[1];
-    sprite_vertex_buffer[index++] = UR[2];
-    sprite_vertex_buffer[index++] = LL[0];
-    sprite_vertex_buffer[index++] = LL[1];
-    sprite_vertex_buffer[index++] = LL[2];
-
-    // Second triangle.
+    var mass_texture = gl.createTexture();
+    var width = 64;   
+    var height = 64;  
+    var data = [];
+    var data2D = new Array(width);
+    var circle_color = [255,255,255,255];
     
-    sprite_vertex_buffer[index++] = UR[0];
-    sprite_vertex_buffer[index++] = UR[1];
-    sprite_vertex_buffer[index++] = UR[2];
-    sprite_vertex_buffer[index++] = LR[0];
-    sprite_vertex_buffer[index++] = LR[1];
-    sprite_vertex_buffer[index++] = LR[2];
-    sprite_vertex_buffer[index++] = LL[0];
-    sprite_vertex_buffer[index++] = LL[1];
-    sprite_vertex_buffer[index++] = LL[2];
+    for( var y = 0; y < height; ++y ) {
+	    data2D[y] = new Array(height);
+    }
+
+    // Initialize to fully transparent black.
+    
+    for( var y = 0; y < height; ++y ) {
+	    for( var x = 0; x < width; ++x ) {
+	        data2D[x][y] = [0,0,0,0];
+	    }
+    }
+
+    // Draw circle.
+    
+    var mid_y = height / 2.0;
+    var mid_x = width / 2.0;
+
+    for( var y = 0; y < height; ++y ) {
+        for( var x = 0; x < width; ++x ) {
+            var distance_squared = (x - mid_x)**2 + (y - mid_y)**2;
+            if( distance_squared < 64.0 ) {
+                data2D[x][y] = circle_color;
+            }
+        }
+    }
+
+    // Flatten elements into RGBA quads.
+    
+    for( var y = 0; y < height; ++y ) {
+	    for( var x = 0; x < width; ++x ) {
+	        var ele = data2D[x][y];
+	        data.push( ele[0] );
+	        data.push( ele[1] );
+	        data.push( ele[2] );
+	        data.push( ele[3] );
+	    }
+    }
+    var data_typed = new Uint8Array(data);
+    gl.bindTexture(gl.TEXTURE_2D, mass_texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data_typed);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    return( mass_texture );
 
 }
 
-function update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_point ) {
+function update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_point, sprite_uv_buffer ) {
 
     // Make a square from two rectangles and place a Z=0 for now.
-
-    //var z = -1.0;
-    //var scale = 1.0;
-
-    // var UL = vec3.fromValues( scale*-0.5, scale*0.5, z);
-    // var UR = vec3.fromValues( scale*0.5, scale*0.5, z);
-    // var LL = vec3.fromValues( scale*-0.5, scale*-0.5, z);
-    // var LR = vec3.fromValues( scale*0.5, scale*-0.5, z);
 
     var UL = vec3.fromValues( -0.5 + vec4_point[0],  0.5 + vec4_point[1], vec4_point[2] );
     var UR = vec3.fromValues(  0.5 + vec4_point[0],  0.5 + vec4_point[1], vec4_point[2] );
     var LL = vec3.fromValues( -0.5 + vec4_point[0], -0.5 + vec4_point[1], vec4_point[2] );
     var LR = vec3.fromValues(  0.5 + vec4_point[0], -0.5 + vec4_point[1], vec4_point[2] );
 
+    var UL_uv = vec2.fromValues( 0.0, 1.0 );
+    var UR_uv = vec2.fromValues( 1.0, 1.0 );
+    var LL_uv = vec2.fromValues( 0.0, 0.0 );
+    var LR_uv = vec2.fromValues( 1.0, 0.0 );
+
     var index = 0;
+    var uv_index = 0;
 
     // First triangle.
 
-    sprite_vertex_buffer[index++] = UL[0];
-    sprite_vertex_buffer[index++] = UL[1];
+    sprite_vertex_buffer[index++] = UL[0];  sprite_uv_buffer[uv_index++] = UL_uv[0];
+    sprite_vertex_buffer[index++] = UL[1];  sprite_uv_buffer[uv_index++] = UL_uv[1];
     sprite_vertex_buffer[index++] = UL[2];
-    sprite_vertex_buffer[index++] = UR[0];
-    sprite_vertex_buffer[index++] = UR[1];
+    sprite_vertex_buffer[index++] = UR[0];  sprite_uv_buffer[uv_index++] = UR_uv[0];
+    sprite_vertex_buffer[index++] = UR[1];  sprite_uv_buffer[uv_index++] = UR_uv[1];
     sprite_vertex_buffer[index++] = UR[2];
-    sprite_vertex_buffer[index++] = LL[0];
-    sprite_vertex_buffer[index++] = LL[1];
-    sprite_vertex_buffer[index++] = LL[2];
+    sprite_vertex_buffer[index++] = LL[0];  sprite_uv_buffer[uv_index++] = LL_uv[0];
+    sprite_vertex_buffer[index++] = LL[1];  sprite_uv_buffer[uv_index++] = LL_uv[1];
+    sprite_vertex_buffer[index++] = LL[2];  
 
     // Second triangle.
     
-    sprite_vertex_buffer[index++] = UR[0];
-    sprite_vertex_buffer[index++] = UR[1];
+    sprite_vertex_buffer[index++] = UR[0];  sprite_uv_buffer[uv_index++] = UR_uv[0];
+    sprite_vertex_buffer[index++] = UR[1];  sprite_uv_buffer[uv_index++] = UR_uv[1];
     sprite_vertex_buffer[index++] = UR[2];
-    sprite_vertex_buffer[index++] = LR[0];
-    sprite_vertex_buffer[index++] = LR[1];
+    sprite_vertex_buffer[index++] = LR[0];  sprite_uv_buffer[uv_index++] = LR_uv[0];
+    sprite_vertex_buffer[index++] = LR[1];  sprite_uv_buffer[uv_index++] = LR_uv[1];
     sprite_vertex_buffer[index++] = LR[2];
-    sprite_vertex_buffer[index++] = LL[0];
-    sprite_vertex_buffer[index++] = LL[1];
+    sprite_vertex_buffer[index++] = LL[0];  sprite_uv_buffer[uv_index++] = LL_uv[0];
+    sprite_vertex_buffer[index++] = LL[1];  sprite_uv_buffer[uv_index++] = LL_uv[1];
     sprite_vertex_buffer[index++] = LL[2];
 
 }
@@ -311,19 +338,24 @@ function update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_point ) {
 function render_scene() {
     gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
 
-    // var mat4_pc_matrix = mat4.create();
-
-    // mat4.multiply( mat4_pc_matrix, mat4_projection_matrix, camera.get_camera_matrix() );
-
     var vec4_transformed_point = vec4.create();
     vec4.transformMat4( vec4_transformed_point, vec4.fromValues(sprite_location[0], sprite_location[1], sprite_location[2], 1.0), camera.get_camera_matrix() );
-    update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_transformed_point );
+    update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_transformed_point, sprite_uv_buffer );
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, mass_texture);
+    gl.uniform1i(uniform_texture, 0);
 
     gl.uniformMatrix4fv(uniform_projection_matrix, false, mat4_projection_matrix);
-    //gl.uniformMatrix4fv(uniform_projection_matrix, false, mat4_pc_matrix);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, sprite_gl_uv_buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, sprite_uv_buffer, gl.DYNAMIC_DRAW);
+    gl.vertexAttribPointer(attr_vertex_uv,2,gl.FLOAT,false,0,0);
+
     gl.bindBuffer(gl.ARRAY_BUFFER, sprite_gl_buffer);
     gl.bufferData(gl.ARRAY_BUFFER, sprite_vertex_buffer, gl.DYNAMIC_DRAW);
     gl.vertexAttribPointer(attr_vertex_position,3,gl.FLOAT,false,0,0);
+
     gl.drawArrays(gl.TRIANGLES,0,6);
     
     window.requestAnimationFrame(render_scene);
@@ -337,9 +369,11 @@ function main() {
     setup_shaders();
     sprite_gl_buffer = gl.createBuffer();
     sprite_vertex_buffer = new Float32Array(2 * 3 * 3);
-    add_sprite_vertices( sprite_vertex_buffer );
+    
+    sprite_gl_uv_buffer = gl.createBuffer();
+    sprite_uv_buffer = new Float32Array(2 * 3 * 2);
 
-    //mat4.multiply( )
+    mass_texture = generate_mass_texture(gl);
 
     render_scene();
 }
