@@ -1,5 +1,10 @@
 "use strict";
 
+// Globals
+
+var particle_count           = 1000;
+var particles                = [];
+
 // Webgl globals
 
 var gl                        = null;                                   // graphics object
@@ -161,32 +166,13 @@ function setup_shaders() {
         uniform sampler2D uniform_texture; // the texture for the fragment
         varying vec2 vary_vertex_uv; // texture uv of fragment
             
-        // geometry properties
-        //varying vec3 vWorldPos; // world xyz of fragment
-        
         void main(void) {
-            
-        //     // combine to find lit color
-        //     vec3 litColor = ambient + diffuse + specular; 
-        //     if (!uUsingTexture) {
-        //         gl_FragColor = vec4(litColor, 1.0);
-        //     } else {
-        //         // Hmmmm.... vVertexUV is ALREADY vec2, this vec2 necessary here?
-        //         vec4 texColor = texture2D(uTexture, vec2(vVertexUV.s, vVertexUV.t));
-            
-        //         // gl_FragColor = vec4(texColor.rgb * litColor, texColor.a);
-
-        //         // My Tetris game used the following:
-        //         // gl_FragColor = vec4(color_sum,1.0) * texture2D(u_texture_sampler, v_tex_coord);
-
-        //         gl_FragColor = vec4(texColor.rgb * litColor, 1.0);
-        //       //  gl_FragColor = vec4(texColor.rgb, 1.0);
-        //    } // end if using texture
-
             vec4 tex_color = texture2D(uniform_texture, vec2(vary_vertex_uv.s, vary_vertex_uv.t));
-            gl_FragColor = vec4(tex_color.rgb, 1.0);
 
-            //gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+            gl_FragColor = tex_color;
+            //if( gl_FragColor.a < 0.1 ) {
+            //  discard;
+            //}
         } // end main
     `;
 
@@ -265,7 +251,7 @@ function generate_mass_texture( gl ) {
     for( var y = 0; y < height; ++y ) {
         for( var x = 0; x < width; ++x ) {
             var distance_squared = (x - mid_x)**2 + (y - mid_y)**2;
-            if( distance_squared < 64.0 ) {
+            if( distance_squared < 32.0 * 32.0 ) {
                 data2D[x][y] = circle_color;
             }
         }
@@ -292,22 +278,21 @@ function generate_mass_texture( gl ) {
 
 }
 
-function update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_point, sprite_uv_buffer ) {
+function update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_point, sprite_uv_buffer, index, uv_index ) {
 
     // Make a square from two rectangles and place a Z=0 for now.
 
-    var UL = vec3.fromValues( -0.5 + vec4_point[0],  0.5 + vec4_point[1], vec4_point[2] );
-    var UR = vec3.fromValues(  0.5 + vec4_point[0],  0.5 + vec4_point[1], vec4_point[2] );
-    var LL = vec3.fromValues( -0.5 + vec4_point[0], -0.5 + vec4_point[1], vec4_point[2] );
-    var LR = vec3.fromValues(  0.5 + vec4_point[0], -0.5 + vec4_point[1], vec4_point[2] );
+    var radius = 0.02;
+
+    var UL = vec3.fromValues( -1.0 * radius + vec4_point[0],        radius + vec4_point[1], vec4_point[2] );
+    var UR = vec3.fromValues(        radius + vec4_point[0],        radius + vec4_point[1], vec4_point[2] );
+    var LL = vec3.fromValues( -1.0 * radius + vec4_point[0], -1.0 * radius + vec4_point[1], vec4_point[2] );
+    var LR = vec3.fromValues(        radius + vec4_point[0], -1.0 * radius + vec4_point[1], vec4_point[2] );
 
     var UL_uv = vec2.fromValues( 0.0, 1.0 );
     var UR_uv = vec2.fromValues( 1.0, 1.0 );
     var LL_uv = vec2.fromValues( 0.0, 0.0 );
     var LR_uv = vec2.fromValues( 1.0, 0.0 );
-
-    var index = 0;
-    var uv_index = 0;
 
     // First triangle.
 
@@ -333,14 +318,32 @@ function update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_point, sp
     sprite_vertex_buffer[index++] = LL[1];  sprite_uv_buffer[uv_index++] = LL_uv[1];
     sprite_vertex_buffer[index++] = LL[2];
 
+    return( [index, uv_index] );
+
 }
 
 function render_scene() {
     gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
 
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.enable(gl.BLEND);
+
+    gl.depthMask(false);
+
     var vec4_transformed_point = vec4.create();
     vec4.transformMat4( vec4_transformed_point, vec4.fromValues(sprite_location[0], sprite_location[1], sprite_location[2], 1.0), camera.get_camera_matrix() );
     update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_transformed_point, sprite_uv_buffer );
+
+    var vertex_index = 0;
+    var uv_index = 0;
+    for( var i = 0; i < particle_count; ++i ) {
+        var particle = particles[i];
+        var vec4_transformed_point = vec4.create();   
+        vec4.transformMat4( vec4_transformed_point, vec4.fromValues(particle[0], particle[1], particle[2], 1.0), camera.get_camera_matrix() );        
+        var indices = update_sprite_vertices_from_point( sprite_vertex_buffer, vec4_transformed_point, sprite_uv_buffer, vertex_index, uv_index );
+        vertex_index = indices[0];
+        uv_index = indices[1];
+    }
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, mass_texture);
@@ -356,7 +359,7 @@ function render_scene() {
     gl.bufferData(gl.ARRAY_BUFFER, sprite_vertex_buffer, gl.DYNAMIC_DRAW);
     gl.vertexAttribPointer(attr_vertex_position,3,gl.FLOAT,false,0,0);
 
-    gl.drawArrays(gl.TRIANGLES,0,6);
+    gl.drawArrays(gl.TRIANGLES,0,6*particle_count);
     
     window.requestAnimationFrame(render_scene);
 }
@@ -368,12 +371,19 @@ function main() {
     setup_webgl();
     setup_shaders();
     sprite_gl_buffer = gl.createBuffer();
-    sprite_vertex_buffer = new Float32Array(2 * 3 * 3);
+    sprite_vertex_buffer = new Float32Array(2 * 3 * 3 * particle_count);
     
     sprite_gl_uv_buffer = gl.createBuffer();
-    sprite_uv_buffer = new Float32Array(2 * 3 * 2);
+    sprite_uv_buffer = new Float32Array(2 * 3 * 2 * particle_count);
 
     mass_texture = generate_mass_texture(gl);
+
+    for( var i = 0; i < particle_count; ++i ) {
+        var x = -2.0 * Math.random() + 1.0;
+        var y = -2.0 * Math.random() + 1.0;
+        var z = -2.0 * Math.random() + 1.0;
+        particles.push( [x, y, z] );
+    }
 
     render_scene();
 }
